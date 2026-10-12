@@ -573,7 +573,8 @@ async function send(){
 
   } catch(err){
     removeTyping();
-    const b = addRow('assistant', 'Не удалось подключиться. Проверь интернет и ключ.');
+    const detail = err && err.message ? err.message : 'неизвестная ошибка';
+    const b = addRow('assistant', 'Не удалось подключиться (' + detail + '). Проверь интернет и ключ.');
     b.classList.add('error');
   }
 }
