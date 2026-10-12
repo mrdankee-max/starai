@@ -368,7 +368,7 @@
     </div>
     <div class="brand">
       <span class="name">StarAI</span>
-      <span class="status" id="status">ключ не задан</span>
+      <span class="status" id="status">модель не загружена</span>
     </div>
     <div class="spacer"></div>
     <button class="icon-btn" id="settingsBtn" aria-label="Настройки">
@@ -385,7 +385,7 @@
         <path d="M50,10 C56,44 56,44 90,50 C56,56 56,56 50,90 C44,56 44,56 10,50 C44,44 44,44 50,10 Z" fill="url(#g1)"/>
       </svg>
       <h2>Привет, это StarAI</h2>
-      <p>Добавь свой API-ключ в настройках (значок шестерёнки), и можно начинать разговор.</p>
+      <p id="emptyText">Модель работает прямо на телефоне, без интернета и без ключей. Нажми «Загрузить модель» в настройках — один раз скачается (~700 МБ), дальше всё офлайн.</p>
       <div class="suggestions">
         <div class="chip" data-prompt="Объясни квантовую запутанность простыми словами">Объясни сложную тему просто</div>
         <div class="chip" data-prompt="Помоги составить план на день">План на день</div>
@@ -410,92 +410,112 @@
 <div id="overlay"></div>
 <div id="sheet">
   <h3>Настройки</h3>
-  <p class="sub">Ключ хранится только на этом устройстве, в локальном хранилище браузера, и никуда не отправляется, кроме Anthropic API.</p>
-  <div class="field">
-    <label for="apiKey">Anthropic API-ключ</label>
-    <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+  <p class="sub">Модель (Llama 3.2, 1B) работает локально в браузере через WebGPU. Ничего не отправляется никуда — всё считается на этом устройстве.</p>
+  <div class="field" id="modelField">
+    <label>Статус модели</label>
+    <div id="modelStatusBox" style="font-size:13px;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 13px;">
+      Не загружена
+    </div>
+    <div id="progressWrap" style="display:none;margin-top:10px;height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;">
+      <div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-light),var(--accent));"></div>
+    </div>
   </div>
   <div class="sheet-actions">
     <button class="btn" id="clearBtn">Очистить чат</button>
-    <button class="btn primary" id="saveBtn">Сохранить</button>
+    <button class="btn primary" id="loadModelBtn">Загрузить модель</button>
   </div>
-  <p class="hint">Ключ можно получить на <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. Это демо-приложение StarAI, не официальный продукт Anthropic.</p>
+  <p class="hint">Нужен Chrome на Android с поддержкой WebGPU. Первая загрузка — около 700 МБ, дальше работает офлайн. Это демо-приложение StarAI, не официальный продукт Anthropic.</p>
 </div>
 
-<script>
-(function(){
-  const chat = document.getElementById('chat');
-  const input = document.getElementById('input');
-  const sendBtn = document.getElementById('send');
-  const emptyState = document.getElementById('emptyState');
-  const statusEl = document.getElementById('status');
+<script type="module">
+import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
-  const overlay = document.getElementById('overlay');
-  const sheet = document.getElementById('sheet');
-  const settingsBtn = document.getElementById('settingsBtn');
-  const apiKeyInput = document.getElementById('apiKey');
-  const saveBtn = document.getElementById('saveBtn');
-  const clearBtn = document.getElementById('clearBtn');
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const emptyState = document.getElementById('emptyState');
+const emptyText = document.getElementById('emptyText');
+const statusEl = document.getElementById('status');
 
-  let history = [];
-  let apiKey = localStorage.getItem('starai_key') || '';
+const overlay = document.getElementById('overlay');
+const sheet = document.getElementById('sheet');
+const settingsBtn = document.getElementById('settingsBtn');
+const loadModelBtn = document.getElementById('loadModelBtn');
+const modelStatusBox = document.getElementById('modelStatusBox');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+const clearBtn = document.getElementById('clearBtn');
 
-  function updateStatus(){
-    if(apiKey){
-      statusEl.textContent = 'на связи';
-      statusEl.className = 'status ready';
-    } else {
-      statusEl.textContent = 'ключ не задан';
-      statusEl.className = 'status';
-    }
+const MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+const SYSTEM_PROMPT = "Ты — StarAI, дружелюбный локальный ассистент, который работает прямо на телефоне пользователя, без интернета. Отвечай кратко и по делу, на том языке, на котором пишет пользователь.";
+
+let history = [{ role: "system", content: SYSTEM_PROMPT }];
+let engine = null;
+let modelReady = false;
+let modelLoading = false;
+
+function setStatus(text, ready){
+  statusEl.textContent = text;
+  statusEl.className = ready ? 'status ready' : 'status';
+}
+
+function hasWebGPU(){
+  return !!navigator.gpu;
+}
+
+async function loadModel(){
+  if(modelLoading || modelReady) return;
+  if(!hasWebGPU()){
+    modelStatusBox.textContent = 'WebGPU не поддерживается этим браузером. Нужен Chrome на Android.';
+    return;
   }
-  updateStatus();
-  apiKeyInput.value = apiKey;
+  modelLoading = true;
+  loadModelBtn.disabled = true;
+  loadModelBtn.textContent = 'Загрузка…';
+  progressWrap.style.display = 'block';
+  setStatus('загрузка модели…', false);
 
-  function openSheet(){
-    overlay.classList.add('open');
-    sheet.classList.add('open');
-  }
-  function closeSheet(){
-    overlay.classList.remove('open');
-    sheet.classList.remove('open');
-  }
-  settingsBtn.addEventListener('click', openSheet);
-  overlay.addEventListener('click', closeSheet);
-  saveBtn.addEventListener('click', function(){
-    apiKey = apiKeyInput.value.trim();
-    localStorage.setItem('starai_key', apiKey);
-    updateStatus();
-    closeSheet();
-  });
-  clearBtn.addEventListener('click', function(){
-    history = [];
-    chat.innerHTML = '';
-    chat.appendChild(emptyState);
-    closeSheet();
-  });
-
-  // autosize textarea
-  input.addEventListener('input', function(){
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-    sendBtn.disabled = input.value.trim().length === 0;
-  });
-  input.addEventListener('keydown', function(e){
-    if(e.key === 'Enter' && !e.shiftKey){
-      e.preventDefault();
-      send();
-    }
-  });
-  sendBtn.addEventListener('click', send);
-
-  document.querySelectorAll('.chip').forEach(function(chip){
-    chip.addEventListener('click', function(){
-      input.value = chip.getAttribute('data-prompt');
-      input.dispatchEvent(new Event('input'));
-      send();
+  try{
+    engine = await CreateMLCEngine(MODEL_ID, {
+      initProgressCallback: (report) => {
+        const pct = Math.round((report.progress || 0) * 100);
+        progressBar.style.width = pct + '%';
+        modelStatusBox.textContent = report.text || (pct + '%');
+      }
     });
-  });
+    modelReady = true;
+    modelLoading = false;
+    loadModelBtn.textContent = 'Модель загружена';
+    modelStatusBox.textContent = 'Готова к работе, офлайн';
+    setStatus('локально, офлайн', true);
+    if(emptyText) emptyText.textContent = 'Модель готова. Напиши что-нибудь — всё считается прямо на телефоне.';
+    closeSheet();
+  } catch(err){
+    modelLoading = false;
+    loadModelBtn.disabled = false;
+    loadModelBtn.textContent = 'Загрузить модель';
+    modelStatusBox.textContent = 'Не удалось загрузить: ' + (err && err.message ? err.message : 'ошибка');
+    setStatus('ошибка загрузки', false);
+  }
+}
+
+function openSheet(){
+  overlay.classList.add('open');
+  sheet.classList.add('open');
+}
+function closeSheet(){
+  overlay.classList.remove('open');
+  sheet.classList.remove('open');
+}
+settingsBtn.addEventListener('click', openSheet);
+overlay.addEventListener('click', closeSheet);
+loadModelBtn.addEventListener('click', loadModel);
+clearBtn.addEventListener('click', function(){
+  history = [{ role: "system", content: SYSTEM_PROMPT }];
+  chat.innerHTML = '';
+  chat.appendChild(emptyState);
+  closeSheet();
+});
 
   function scrollDown(){
     chat.scrollTop = chat.scrollHeight;
@@ -543,71 +563,68 @@
     if(row) row.remove();
   }
 
-  async function send(){
-    const text = input.value.trim();
-    if(!text) return;
+async function send(){
+  const text = input.value.trim();
+  if(!text) return;
 
-    if(!apiKey){
-      openSheet();
-      return;
-    }
-
-    addRow('user', text);
-    history.push({ role: 'user', content: text });
-    input.value = '';
-    input.style.height = 'auto';
-    sendBtn.disabled = true;
-
-    addTyping();
-
-    try{
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          messages: history
-        })
-      });
-
-      const data = await res.json();
-      removeTyping();
-
-      if(!res.ok){
-        const msg = (data && data.error && data.error.message) ? data.error.message : 'Запрос не удался.';
-        const b = addRow('assistant', msg);
-        b.classList.add('error');
-        return;
-      }
-
-      const reply = (data.content || [])
-        .filter(function(b){ return b.type === 'text'; })
-        .map(function(b){ return b.text; })
-        .join('\n');
-
-      addRow('assistant', reply || '(пустой ответ)');
-      history.push({ role: 'assistant', content: reply });
-
-    } catch(err){
-      removeTyping();
-      const b = addRow('assistant', 'Не удалось подключиться. Проверь интернет и ключ.');
-      b.classList.add('error');
-    }
+  if(!modelReady){
+    openSheet();
+    return;
   }
 
-  // register service worker
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', function(){
-      navigator.serviceWorker.register('sw.js').catch(function(){});
+  addRow('user', text);
+  history.push({ role: 'user', content: text });
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addTyping();
+
+  try{
+    const completion = await engine.chat.completions.create({
+      messages: history,
+      temperature: 0.7,
+      max_tokens: 512
     });
+
+    removeTyping();
+    const reply = completion.choices[0].message.content || '(пустой ответ)';
+    addRow('assistant', reply);
+    history.push({ role: 'assistant', content: reply });
+
+  } catch(err){
+    removeTyping();
+    const b = addRow('assistant', 'Локальная модель не смогла ответить: ' + (err && err.message ? err.message : 'ошибка'));
+    b.classList.add('error');
   }
-})();
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('input', function(){
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  sendBtn.disabled = input.value.trim().length === 0;
+});
+input.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    send();
+  }
+});
+document.querySelectorAll('.chip').forEach(function(chip){
+  chip.addEventListener('click', function(){
+    input.value = chip.getAttribute('data-prompt');
+    input.dispatchEvent(new Event('input'));
+    send();
+  });
+});
+
+// register service worker (shell only — model weights are cached by WebLLM itself)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
 </script>
 </body>
 </html>
