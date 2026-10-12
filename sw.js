@@ -1,4 +1,4 @@
-const CACHE = "starai-v2";
+const CACHE = "starai-v3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -16,9 +16,14 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+
+  // Only ever handle our own site's GET requests.
+  // Anything cross-origin (API calls to OpenRouter, etc.) is left completely
+  // untouched so headers like Authorization are never altered.
+  if (url.origin !== self.location.origin) return;
   if (e.request.method !== "GET") return;
-  // Never cache API calls
-  if (e.request.url.includes("api.anthropic.com")) return;
+
   e.respondWith(
     caches.match(e.request).then((cached) => cached || fetch(e.request))
   );
