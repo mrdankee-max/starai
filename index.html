@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f0a1f" />
+<title>StarAI</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<style>
+  :root{
+    --bg-0:#0a0714;
+    --bg-1:#140c26;
+    --bg-2:#1c1236;
+    --surface:#1a1130;
+    --surface-2:#231a3d;
+    --border: rgba(155,92,255,0.16);
+    --text:#f1ecff;
+    --text-dim:#a79bcf;
+    --text-faint:#6b5f91;
+    --accent:#9b5cff;
+    --accent-light:#c9a6ff;
+    --accent-dark:#6c2bd9;
+    --danger:#ff6b8b;
+    --radius-lg: 22px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{ box-sizing: inherit; }
+  html,body{
+    height:100%;
+    margin:0;
+    background: var(--bg-0);
+  }
+  body{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--text);
+    overflow:hidden;
+  }
+  #app{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(900px 500px at 20% -10%, rgba(155,92,255,0.16), transparent 60%),
+      radial-gradient(700px 500px at 100% 0%, rgba(108,43,217,0.14), transparent 55%),
+      linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 60%);
+  }
+
+  /* Header */
+  header{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding: 14px 18px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(14px);
+  }
+  .logo-mark{
+    width:34px; height:34px;
+    flex:0 0 auto;
+    position:relative;
+  }
+  .logo-mark svg{ width:100%; height:100%; display:block; }
+  .brand{
+    display:flex;
+    flex-direction:column;
+    line-height:1.1;
+  }
+  .brand .name{
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    background: linear-gradient(90deg, var(--text) 0%, var(--accent-light) 120%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand .status{
+    font-size: 11.5px;
+    color: var(--text-faint);
+    margin-top:1px;
+  }
+  .brand .status.ready{ color:#8fe3b0; }
+  .brand .status.ready::before{
+    content:"";
+    display:inline-block;
+    width:6px; height:6px;
+    border-radius:50%;
+    background:#4ad980;
+    margin-right:6px;
+    box-shadow:0 0 6px #4ad98099;
+  }
+  header .spacer{ flex:1; }
+  .icon-btn{
+    width:38px; height:38px;
+    border-radius: 50%;
+    border:1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .icon-btn:active{ transform: scale(0.94); }
+  .icon-btn svg{ width:18px; height:18px; }
+
+  /* Chat area */
+  #chat{
+    flex:1 1 auto;
+    overflow-y:auto;
+    padding: 18px 16px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .empty-state{
+    margin:auto;
+    text-align:center;
+    color: var(--text-faint);
+    max-width: 320px;
+    padding: 20px;
+  }
+  .empty-state .glyph{ width:56px; height:56px; margin:0 auto 18px; opacity:0.9; }
+  .empty-state h2{
+    font-size:19px;
+    color: var(--text-dim);
+    font-weight:600;
+    margin: 0 0 8px;
+  }
+  .empty-state p{
+    font-size: 13.5px;
+    line-height:1.55;
+    margin:0;
+  }
+  .suggestions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+    margin-top:18px;
+  }
+  .chip{
+    font-size:12.5px;
+    padding:8px 13px;
+    border-radius: 999px;
+    border:1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    cursor:pointer;
+  }
+  .chip:active{ background: var(--surface-2); }
+
+  .row{
+    display:flex;
+    gap:10px;
+    max-width: 86%;
+  }
+  .row.user{ align-self:flex-end; flex-direction:row-reverse; max-width:88%; }
+  .row.assistant{ align-self:flex-start; }
+
+  .avatar{
+    flex:0 0 auto;
+    width:26px; height:26px;
+    border-radius:50%;
+    margin-top:2px;
+  }
+  .avatar.ai{
+    background: linear-gradient(135deg, var(--accent-light), var(--accent-dark));
+    display:flex; align-items:center; justify-content:center;
+  }
+  .avatar.ai svg{ width:14px; height:14px; }
+  .avatar.me{
+    background: var(--surface-2);
+    border:1px solid var(--border);
+  }
+
+  .bubble{
+    padding: 11px 14px;
+    border-radius: var(--radius-md);
+    font-size: 14.5px;
+    line-height:1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .row.assistant .bubble{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text);
+  }
+  .row.user .bubble{
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    border-top-right-radius: 4px;
+    color: #fff;
+  }
+  .bubble.error{
+    background: rgba(255,107,139,0.1);
+    border:1px solid rgba(255,107,139,0.35);
+    color: #ffb4c4;
+  }
+
+  .typing{
+    display:flex; gap:4px; padding: 4px 2px;
+  }
+  .typing span{
+    width:6px; height:6px; border-radius:50%;
+    background: var(--accent-light);
+    animation: bounce 1.1s infinite ease-in-out;
+    opacity:0.7;
+  }
+  .typing span:nth-child(2){ animation-delay:0.15s; }
+  .typing span:nth-child(3){ animation-delay:0.3s; }
+  @keyframes bounce{
+    0%, 60%, 100%{ transform: translateY(0); opacity:0.5; }
+    30%{ transform: translateY(-5px); opacity:1; }
+  }
+
+  /* Composer */
+  #composer{
+    flex:0 0 auto;
+    padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(14px);
+  }
+  .composer-inner{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 7px 7px 7px 16px;
+  }
+  #input{
+    flex:1;
+    border:none;
+    background:transparent;
+    color: var(--text);
+    font-size:15px;
+    font-family:inherit;
+    resize:none;
+    max-height: 120px;
+    padding: 7px 0;
+    outline:none;
+    line-height:1.4;
+  }
+  #input::placeholder{ color: var(--text-faint); }
+  #send{
+    flex:0 0 auto;
+    width:38px; height:38px;
+    border-radius:50%;
+    border:none;
+    background: linear-gradient(135deg, var(--accent-light), var(--accent));
+    color:#1c0f33;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  #send:disabled{ opacity:0.35; }
+  #send:active:not(:disabled){ transform: scale(0.92); }
+  #send svg{ width:17px; height:17px; }
+
+  /* Settings sheet */
+  #overlay{
+    position:fixed; inset:0;
+    background: rgba(5,3,12,0.6);
+    backdrop-filter: blur(2px);
+    display:none;
+    z-index:20;
+  }
+  #overlay.open{ display:block; }
+  #sheet{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border);
+    border-radius: 22px 22px 0 0;
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(.32,.72,0,1);
+    z-index:21;
+  }
+  #sheet.open{ transform: translateY(0); }
+  #sheet h3{
+    margin:0 0 4px;
+    font-size:16px;
+    font-weight:650;
+  }
+  #sheet .sub{
+    margin:0 0 18px;
+    font-size:12.5px;
+    color: var(--text-faint);
+    line-height:1.5;
+  }
+  .field label{
+    display:block;
+    font-size:12px;
+    color: var(--text-dim);
+    margin-bottom:7px;
+  }
+  .field input{
+    width:100%;
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 13px;
+    color: var(--text);
+    font-size:14px;
+    outline:none;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .field input:focus{ border-color: var(--accent); }
+  .sheet-actions{
+    display:flex;
+    gap:10px;
+    margin-top:16px;
+  }
+  .btn{
+    flex:1;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border:1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn.primary{
+    background: linear-gradient(135deg, var(--accent-light), var(--accent));
+    color:#1c0f33;
+    border:none;
+  }
+  .btn:active{ transform: scale(0.98); }
+  .hint{
+    margin-top:14px;
+    font-size:11.5px;
+    color: var(--text-faint);
+    line-height:1.5;
+  }
+  .hint a{ color: var(--accent-light); }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#c9a6ff"/>
+            <stop offset="100%" stop-color="#6c2bd9"/>
+          </linearGradient>
+        </defs>
+        <path d="M50,12 C55,42 58,45 88,50 C58,55 55,58 50,88 C45,58 42,55 12,50 C42,45 45,42 50,12 Z" fill="url(#g1)"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <span class="name">StarAI</span>
+      <span class="status" id="status">ключ не задан</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="settingsBtn" aria-label="Настройки">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <div id="chat">
+    <div class="empty-state" id="emptyState">
+      <svg class="glyph" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50,10 C56,44 56,44 90,50 C56,56 56,56 50,90 C44,56 44,56 10,50 C44,44 44,44 50,10 Z" fill="url(#g1)"/>
+      </svg>
+      <h2>Привет, это StarAI</h2>
+      <p id="emptyText">Добавь свой бесплатный OpenRouter-ключ в настройках (значок шестерёнки), и можно начинать разговор.</p>
+      <div class="suggestions">
+        <div class="chip" data-prompt="Объясни квантовую запутанность простыми словами">Объясни сложную тему просто</div>
+        <div class="chip" data-prompt="Помоги составить план на день">План на день</div>
+        <div class="chip" data-prompt="Придумай идею для подарка другу">Идея подарка</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="composer">
+    <div class="composer-inner">
+      <textarea id="input" rows="1" placeholder="Напиши сообщение…"></textarea>
+      <button id="send" disabled aria-label="Отправить">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="19" x2="12" y2="5"></line>
+          <polyline points="5 12 12 5 19 12"></polyline>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+<div id="sheet">
+  <h3>Настройки</h3>
+  <p class="sub">Ключ хранится только на этом устройстве, в локальном хранилище браузера, и никуда не отправляется, кроме OpenRouter.</p>
+  <div class="field">
+    <label for="apiKey">OpenRouter API-ключ</label>
+    <input id="apiKey" type="password" placeholder="sk-or-v1-..." autocomplete="off" spellcheck="false" />
+  </div>
+  <div class="sheet-actions">
+    <button class="btn" id="clearBtn">Очистить чат</button>
+    <button class="btn primary" id="saveBtn">Сохранить</button>
+  </div>
+  <p class="hint">Бесплатный ключ — на <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Используется бесплатная модель Llama 3.3 70B. Это демо-приложение StarAI, не официальный продукт Anthropic или OpenRouter.</p>
+</div>
+
+<script type="module">
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const emptyState = document.getElementById('emptyState');
+const statusEl = document.getElementById('status');
+
+const overlay = document.getElementById('overlay');
+const sheet = document.getElementById('sheet');
+const settingsBtn = document.getElementById('settingsBtn');
+const apiKeyInput = document.getElementById('apiKey');
+const saveBtn = document.getElementById('saveBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+const MODEL_ID = "meta-llama/llama-3.3-70b-instruct:free";
+const SYSTEM_PROMPT = "Ты — StarAI, дружелюбный ассистент. Отвечай кратко и по делу, на том языке, на котором пишет пользователь.";
+
+let history = [{ role: "system", content: SYSTEM_PROMPT }];
+let apiKey = localStorage.getItem('starai_or_key') || '';
+
+function updateStatus(){
+  if(apiKey){
+    statusEl.textContent = 'на связи';
+    statusEl.className = 'status ready';
+  } else {
+    statusEl.textContent = 'ключ не задан';
+    statusEl.className = 'status';
+  }
+}
+updateStatus();
+apiKeyInput.value = apiKey;
+
+function openSheet(){
+  overlay.classList.add('open');
+  sheet.classList.add('open');
+}
+function closeSheet(){
+  overlay.classList.remove('open');
+  sheet.classList.remove('open');
+}
+settingsBtn.addEventListener('click', openSheet);
+overlay.addEventListener('click', closeSheet);
+saveBtn.addEventListener('click', function(){
+  apiKey = apiKeyInput.value.trim();
+  localStorage.setItem('starai_or_key', apiKey);
+  updateStatus();
+  closeSheet();
+});
+clearBtn.addEventListener('click', function(){
+  history = [{ role: "system", content: SYSTEM_PROMPT }];
+  chat.innerHTML = '';
+  chat.appendChild(emptyState);
+  closeSheet();
+});
+
+  function scrollDown(){
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addRow(role, text){
+    if(emptyState.parentNode) emptyState.remove();
+    const row = document.createElement('div');
+    row.className = 'row ' + role;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar ' + (role === 'user' ? 'me' : 'ai');
+    if(role === 'assistant'){
+      avatar.innerHTML = '<svg viewBox="0 0 100 100" fill="#1c0f33"><path d="M50,15 C55,42 58,45 85,50 C58,55 55,58 50,85 C45,58 42,55 15,50 C42,45 45,42 50,15 Z"/></svg>';
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    scrollDown();
+    return bubble;
+  }
+
+  function addTyping(){
+    const row = document.createElement('div');
+    row.className = 'row assistant';
+    row.id = 'typingRow';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar ai';
+    avatar.innerHTML = '<svg viewBox="0 0 100 100" fill="#1c0f33"><path d="M50,15 C55,42 58,45 85,50 C58,55 55,58 50,85 C45,58 42,55 15,50 C42,45 45,42 50,15 Z"/></svg>';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    scrollDown();
+  }
+  function removeTyping(){
+    const row = document.getElementById('typingRow');
+    if(row) row.remove();
+  }
+
+async function send(){
+  const text = input.value.trim();
+  if(!text) return;
+
+  if(!apiKey){
+    openSheet();
+    return;
+  }
+
+  addRow('user', text);
+  history.push({ role: 'user', content: text });
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addTyping();
+
+  try{
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+        'HTTP-Referer': location.href,
+        'X-Title': 'StarAI'
+      },
+      body: JSON.stringify({
+        model: MODEL_ID,
+        messages: history,
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    });
+
+    const data = await res.json();
+    removeTyping();
+
+    if(!res.ok){
+      const msg = (data && data.error && data.error.message) ? data.error.message : 'Запрос не удался.';
+      const b = addRow('assistant', msg);
+      b.classList.add('error');
+      return;
+    }
+
+    const reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '(пустой ответ)';
+    addRow('assistant', reply);
+    history.push({ role: 'assistant', content: reply });
+
+  } catch(err){
+    removeTyping();
+    const b = addRow('assistant', 'Не удалось подключиться. Проверь интернет и ключ.');
+    b.classList.add('error');
+  }
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('input', function(){
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  sendBtn.disabled = input.value.trim().length === 0;
+});
+input.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    send();
+  }
+});
+document.querySelectorAll('.chip').forEach(function(chip){
+  chip.addEventListener('click', function(){
+    input.value = chip.getAttribute('data-prompt');
+    input.dispatchEvent(new Event('input'));
+    send();
+  });
+});
+
+// register service worker
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
